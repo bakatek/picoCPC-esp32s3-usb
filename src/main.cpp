@@ -8,10 +8,12 @@
 #include <WebSocketsServer.h>
 #include <time.h>
 #include <Preferences.h>
+#include <Update.h>
 #include "config.h"
 #include "flashdisk.h"
 #include "fat16.h"
 #include "usb_dev.h"
+#include "typer.h"
 #include "ble_hid.h"
 #include "dbglog.h"
 #include "web_ui.h"
@@ -52,7 +54,7 @@ static void sendOk() { sendJson(200, "{\"ok\":true}"); }
 static void hStatus() {
   uint32_t total = g_fat.totalBytes(), fr = g_fat.freeBytes();
   String j = "{\"total\":" + String(total) + ",\"free\":" + String(fr) + ",\"usb\":" + (usbMounted() ? "true" : "false") +
-             ",\"hid\":" + String(usbHidMode()) + ",\"pending\":" + (g_pending ? "true" : "false") + ",\"ip\":\"" + g_ip + "\"}";
+             ",\"hid\":" + String(usbHidMode()) + ",\"fw\":\"" FW_VERSION " " __DATE__ " " __TIME__ "\",\"pending\":" + (g_pending ? "true" : "false") + ",\"ip\":\"" + g_ip + "\"}";
   sendJson(200, j);
 }
 
@@ -95,6 +97,43 @@ static void hHidMode() {
   usbSetHidMode(server.arg("m").toInt());
   sendOk();
   g_reboot = true; g_rebootAt = millis() + 800;
+}
+
+// ---- mise a jour du firmware (OTA) : on envoie le fichier firmware.bin (application seule)
+static bool fwOk = true, fwDone = false;
+static std::string fwErr;
+static size_t fwWritten = 0;
+
+static std::string uerr() { return std::string(String(Update.errorString()).c_str()); }
+static void fwFail(const std::string& m) { if (fwOk) { fwOk = false; fwErr = m; } Update.abort(); dbg("OTA : echec : %s", m.c_str()); }
+
+static void hFwData() {
+  HTTPUpload& up = server.upload();
+  if (up.status == UPLOAD_FILE_START) {
+    fwOk = true; fwDone = false; fwErr.clear(); fwWritten = 0;
+    g_disk.flush();
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) fwFail("Update.begin : " + uerr());
+    else dbg("OTA : debut (%s)", up.filename.c_str());
+  } else if (up.status == UPLOAD_FILE_WRITE) {
+    if (!fwOk) return;
+    if (fwWritten == 0) {                      // en-tete d'image ESP : magic 0xE9, puce a l'offset 12 (ESP32-S3 = 9)
+      if (up.currentSize < 16 || up.buf[0] != 0xE9) { fwFail("ce n'est pas un firmware ESP32 (utilisez firmware.bin, pas le fichier complet)"); return; }
+      if (up.buf[12] != 9 || up.buf[13] != 0) { fwFail("firmware prevu pour une autre puce que l'ESP32-S3"); return; }
+    }
+    if (Update.write(up.buf, up.currentSize) != up.currentSize) { fwFail("ecriture flash : " + uerr()); return; }
+    fwWritten += up.currentSize;
+  } else if (up.status == UPLOAD_FILE_END) {
+    if (!fwOk) return;
+    if (!Update.end(true)) fwFail("verification : " + uerr());
+    else { fwDone = true; dbg("OTA : %u octets ecrits, redemarrage", (unsigned)fwWritten); }
+  } else if (up.status == UPLOAD_FILE_ABORTED) {
+    fwFail("envoi annule");
+  }
+}
+
+static void hFwDone() {
+  if (fwOk && fwDone) { sendOk(); g_reboot = true; g_rebootAt = millis() + 1500; }
+  else sendErr(500, fwErr.empty() ? "echec de la mise a jour" : fwErr);
 }
 
 static bool upOk = true;
@@ -185,11 +224,14 @@ static void hBleConnect() { bleConnect(server.arg("addr")); sendOk(); }
 static void hBleForget()  { bleForget(server.arg("addr")); sendOk(); }
 
 // ---------------------------------------------------------------- WebSocket (clavier / souris)
-static void wsEvent(uint8_t, WStype_t type, uint8_t* p, size_t len) {
+static uint8_t hexv(char c) { return c >= '0' && c <= '9' ? c - '0' : (c | 32) >= 'a' && (c | 32) <= 'f' ? (c | 32) - 'a' + 10 : 255; }
+
+static void wsEvent(uint8_t num, WStype_t type, uint8_t* p, size_t len) {
   if (type == WStype_DISCONNECTED) { usbReleaseAll(); return; }
   if (type != WStype_TEXT || len < 1) return;
   const char* s = (const char*)p;
   if (s[0] == 'k') {
+    if (typerActive()) return;                 // saisie automatique en cours : on ignore le clavier direct
     int m, k[6];
     if (sscanf(s, "k %d %d %d %d %d %d %d", &m, &k[0], &k[1], &k[2], &k[3], &k[4], &k[5]) == 7) {
       uint8_t r[8] = {(uint8_t)m, 0, (uint8_t)k[0], (uint8_t)k[1], (uint8_t)k[2], (uint8_t)k[3], (uint8_t)k[4], (uint8_t)k[5]};
@@ -200,6 +242,47 @@ static void wsEvent(uint8_t, WStype_t type, uint8_t* p, size_t len) {
     if (sscanf(s, "m %d %d %d %d", &b, &dx, &dy, &w) == 4) usbMouse(b & 7, dx, dy, w);
   } else if (s[0] == 'r') {
     usbReleaseAll();
+  } else if (s[0] == 'P') {                    // mesure de latence : on renvoie tel quel
+    ws.sendTXT(num, (const char*)p, len);
+  } else if (s[0] == 't') {                    // t <maintien ms> <pause ms> <fin de ligne ms> <hex...>
+    int h, g, e, off = 0;
+    if (sscanf(s, "t %d %d %d %n", &h, &g, &e, &off) >= 3 && off > 0) {
+      typerSetTiming(h, g, e);
+      uint8_t tmp[300]; size_t n = 0;
+      for (size_t i = off; i + 1 < len && n < sizeof tmp; i += 2) {
+        uint8_t hi = hexv(s[i]), lo = hexv(s[i + 1]);
+        if (hi == 255 || lo == 255) break;
+        tmp[n++] = hi << 4 | lo;
+      }
+      typerPush(tmp, n);
+    }
+  } else if (s[0] == 'x') {                    // abandon de la saisie automatique
+    typerAbort();
+  }
+}
+
+// Tache d'entree : WebSocket, Bluetooth, saisie automatique et envoi HID, toutes les ms,
+// independamment des requetes HTTP (televersements...) qui bloquent la boucle principale.
+static void inputTask(void*) {
+  uint32_t lastProg = 0;
+  bool wasActive = false;
+  for (;;) {
+    ws.loop();
+    InputEvt e;
+    for (int n = 0; n < 16 && blePop(e); n++) {
+      if (e.type == 1) usbKeyboardReport(e.d);
+      else usbMouse(e.d[0] & 7, (int8_t)e.d[1], (int8_t)e.d[2], (int8_t)e.d[3]);
+    }
+    typerRun();
+    usbPump();
+    bool act = typerActive();
+    if ((act && millis() - lastProg > 150) || (wasActive && !act)) {
+      lastProg = millis();
+      String m = "t " + String(typerRemaining());
+      ws.broadcastTXT(m);
+    }
+    wasActive = act;
+    vTaskDelay(1);
   }
 }
 
@@ -253,7 +336,7 @@ void setup() {
   wifiSetup();
   bleBegin();
 
-  server.on("/", HTTP_GET, [] { server.send_P(200, "text/html; charset=utf-8", INDEX_HTML); });
+  server.on("/", HTTP_GET, [] { server.sendHeader("Cache-Control", "no-store"); server.send_P(200, "text/html; charset=utf-8", INDEX_HTML); });
   server.on("/api/status", HTTP_GET, hStatus);
   server.on("/api/files", HTTP_GET, hFiles);
   server.on("/api/delete", HTTP_POST, hDelete);
@@ -261,6 +344,7 @@ void setup() {
   server.on("/api/format", HTTP_POST, hFormat);
   server.on("/api/remount", HTTP_POST, hRemount);
   server.on("/api/hidmode", HTTP_POST, hHidMode);
+  server.on("/api/fwupdate", HTTP_POST, hFwDone, hFwData);
   server.on("/api/upload", HTTP_POST, hUploadDone, hUploadData);
   server.on("/download", HTTP_GET, hDownload);
   server.on("/api/log", HTTP_GET, hLog);
@@ -277,17 +361,11 @@ void setup() {
 
   ws.begin();
   ws.onEvent(wsEvent);
+  xTaskCreatePinnedToCore(inputTask, "input", 8192, nullptr, 3, nullptr, 1);
 }
 
 void loop() {
   server.handleClient();
-  ws.loop();
-
-  InputEvt e;
-  for (int n = 0; n < 16 && blePop(e); n++) {
-    if (e.type == 1) usbKeyboardReport(e.d);
-    else usbMouse(e.d[0] & 7, (int8_t)e.d[1], (int8_t)e.d[2], (int8_t)e.d[3]);
-  }
 
   g_disk.flushIfIdle(FLUSH_IDLE_MS);
 

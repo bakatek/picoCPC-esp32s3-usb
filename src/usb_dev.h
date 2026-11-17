@@ -15,3 +15,4 @@ void usbReleaseAll();
 // mode HID (une seule interface boot possible) : 1 = clavier, 2 = souris ; change apres redemarrage
 int usbHidMode();
 void usbSetHidMode(int m);
+void usbPump();                    // envoie le prochain rapport HID en attente (appeler souvent)

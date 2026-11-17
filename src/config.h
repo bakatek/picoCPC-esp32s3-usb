@@ -24,9 +24,12 @@
 // Apres une modification faite depuis la page web, l'ESP32 se detache
 // brievement du bus USB puis se rattache : la PicoCPC voit la cle
 // retiree puis remise, et relit son contenu.
-#define AUTO_REMOUNT      1            // 1 = automatique, 0 = bouton seulement
+#define AUTO_REMOUNT      0            // 1 = automatique, 0 = bouton seulement
 #define REMOUNT_DELAY_MS  2500         // delai apres la derniere modification
 #define DETACH_MS         700          // duree du detachement USB
+
+// --- Version -----------------------------------------------------
+#define FW_VERSION        "1.4"        // affichee sur la page web et dans le nom des fichiers de release
 
 // --- Diagnostic -----------------------------------------------------
 // 0 = l'ESP32 se presente comme une cle USB seule (sans clavier/souris).

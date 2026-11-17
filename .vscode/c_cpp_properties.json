@@ -12,6 +12,7 @@
                 "/mnt/ssd250/Documents/PlatformIO/Projects/picoCPC-esp32s3-usb/src",
                 "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/WebServer/src",
                 "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/FS/src",
+                "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/Update/src",
                 "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/Preferences/src",
                 "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/ESPmDNS/src",
                 "/mnt/ssd250/Documents/PlatformIO/Projects/picoCPC-esp32s3-usb/.pio/libdeps/picocpc_bridge/WebSockets/src",
@@ -241,7 +242,6 @@
                 "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/SimpleBLE/src",
                 "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/Ticker/src",
                 "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/USB/src",
-                "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/Update/src",
                 "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/WiFiProv/src",
                 "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/Wire/src",
                 ""
@@ -253,6 +253,7 @@
                     "/mnt/ssd250/Documents/PlatformIO/Projects/picoCPC-esp32s3-usb/src",
                     "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/WebServer/src",
                     "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/FS/src",
+                    "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/Update/src",
                     "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/Preferences/src",
                     "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/ESPmDNS/src",
                     "/mnt/ssd250/Documents/PlatformIO/Projects/picoCPC-esp32s3-usb/.pio/libdeps/picocpc_bridge/WebSockets/src",
@@ -482,7 +483,6 @@
                     "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/SimpleBLE/src",
                     "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/Ticker/src",
                     "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/USB/src",
-                    "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/Update/src",
                     "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/WiFiProv/src",
                     "/home/epel/.platformio/packages/framework-arduinoespressif32@3.20017.241212+sha.dcc1105b/libraries/Wire/src",
                     ""

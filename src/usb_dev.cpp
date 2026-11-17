@@ -41,7 +41,7 @@ static uint16_t hidLoadDescriptor(uint8_t* dst, uint8_t* itf) {
   TU_VERIFY(epIn != 0, 0);
   uint8_t d[TUD_HID_DESC_LEN] = {
     TUD_HID_DESCRIPTOR(*itf, str, g_hidMode == 2 ? HID_ITF_PROTOCOL_MOUSE : HID_ITF_PROTOCOL_KEYBOARD,
-                       g_hidMode == 2 ? sizeof(mouseDesc) : sizeof(kbdDesc), (uint8_t)(0x80 | epIn), 8, 10)};
+                       g_hidMode == 2 ? sizeof(mouseDesc) : sizeof(kbdDesc), (uint8_t)(0x80 | epIn), 8, 4)};
   *itf += 1;
   memcpy(dst, d, TUD_HID_DESC_LEN);
   return TUD_HID_DESC_LEN;
@@ -133,29 +133,71 @@ void usbRemount() {
 }
 
 // ---------------------------------------------------------------- HID : envoi
-static bool hidSend(const uint8_t* d, uint8_t n) {
-  for (int i = 0; i < 20 && !tud_hid_n_ready(0); i++) delay(1);
-  if (!tud_hid_n_ready(0)) return false;
-  return tud_hid_n_report(0, 0, d, n);        // report ID 0 : format boot brut
+// Les rapports passent par une file d'attente : aucun appui/relachement n'est perdu, meme en rafale.
+// usbPump() (appelee toutes les ms par la tache d'entree) envoie le suivant des que l'interface est libre.
+struct Rep { uint8_t n; uint8_t d[8]; };
+static const int QN = 256;
+static Rep rq[QN];
+static int rqHead = 0, rqTail = 0;
+static SemaphoreHandle_t rqMux = nullptr;
+
+static int rqCount() { return (rqTail - rqHead + QN) % QN; }
+
+static void rqPush(const uint8_t* d, uint8_t n, bool mouse) {
+  if (!rqMux) rqMux = xSemaphoreCreateMutex();
+  xSemaphoreTake(rqMux, portMAX_DELAY);
+  // souris : on fusionne les deplacements consecutifs (meme boutons) -> pas de retard accumule
+  if (mouse && rqCount() > 0) {
+    Rep& t = rq[(rqTail - 1 + QN) % QN];
+    if (t.n == 4 && t.d[0] == d[0]) {
+      int dx = (int8_t)t.d[1] + (int8_t)d[1], dy = (int8_t)t.d[2] + (int8_t)d[2], dw = (int8_t)t.d[3] + (int8_t)d[3];
+      if (dx >= -127 && dx <= 127 && dy >= -127 && dy <= 127 && dw >= -127 && dw <= 127) {
+        t.d[1] = (uint8_t)(int8_t)dx; t.d[2] = (uint8_t)(int8_t)dy; t.d[3] = (uint8_t)(int8_t)dw;
+        xSemaphoreGive(rqMux);
+        return;
+      }
+    }
+  }
+  if (rqCount() < QN - 1) {
+    rq[rqTail].n = n; memcpy(rq[rqTail].d, d, n);
+    rqTail = (rqTail + 1) % QN;
+  }
+  xSemaphoreGive(rqMux);
+}
+
+void usbPump() {
+#if ENABLE_HID
+  if (!rqMux || rqHead == rqTail) return;
+  if (!usbMounted()) { xSemaphoreTake(rqMux, portMAX_DELAY); rqHead = rqTail = 0; xSemaphoreGive(rqMux); return; }
+  for (int k = 0; k < 4 && rqHead != rqTail && tud_hid_n_ready(0); k++) {
+    Rep r;
+    xSemaphoreTake(rqMux, portMAX_DELAY);
+    r = rq[rqHead];
+    rqHead = (rqHead + 1) % QN;
+    xSemaphoreGive(rqMux);
+    tud_hid_n_report(0, 0, r.d, r.n);        // report ID 0 : format boot brut
+    break;                                   // un seul rapport par passage : l'interface est occupee jusqu'a l'ack
+  }
+#endif
 }
 
 void usbKeyboardReport(const uint8_t r[8]) {
 #if ENABLE_HID
-  if (g_hidMode != 1 || !usbMounted()) return;
-  hidSend(r, 8);
+  if (g_hidMode != 1) return;
+  rqPush(r, 8, false);
 #endif
 }
 
 void usbMouse(uint8_t buttons, int dx, int dy, int wheel) {
 #if ENABLE_HID
-  if (g_hidMode != 2 || !usbMounted()) return;
+  if (g_hidMode != 2) return;
   g_btn = buttons & 7;
   bool first = true;
   while (first || dx || dy || wheel) {
     first = false;
     int sx = constrain(dx, -127, 127), sy = constrain(dy, -127, 127), sw = constrain(wheel, -127, 127);
     uint8_t rep[4] = {g_btn, (uint8_t)(int8_t)sx, (uint8_t)(int8_t)sy, (uint8_t)(int8_t)sw};
-    hidSend(rep, 4);
+    rqPush(rep, 4, true);
     dx -= sx; dy -= sy; wheel -= sw;
   }
 #endif

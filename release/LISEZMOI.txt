@@ -1,0 +1,13 @@
+PicoCPC USB Bridge v1.4 - flasher le firmware
+================================================
+
+1. Branchez l'ESP32-S3 a l'ordinateur par le port "UART" de la carte (pas le port "USB").
+2. Windows : double-clic sur flash.bat      Linux/macOS : ./flash.sh
+   (Python 3 requis ; esptool s'installe tout seul a la premiere utilisation.)
+
+   flash.bat --app        ne flashe que l'application (plus rapide)
+   flash.bat --erase      efface TOUT d'abord (perd la cle virtuelle et le Wi-Fi)
+   flash.bat --port COM5  force le port
+
+Ensuite, les mises a jour peuvent se faire depuis la page web (carte "Mise a jour du firmware")
+avec le fichier *-app.bin. Le flash par cable n'est utile que la premiere fois ou en cas de panne.

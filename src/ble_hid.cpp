@@ -192,7 +192,7 @@ static void forgetDev(const String& s) {
 
 static void autoReconnect() {
   if (NimBLEDevice::getNumBonds() == 0) return;
-  { Lock l; int alive = 0; for (auto& c : conns) if (c.alive) alive++; if (alive >= 2) return; }
+  { Lock l; int alive = 0; for (auto& c : conns) if (c.alive) alive++; if (alive >= 2 || alive >= (int)NimBLEDevice::getNumBonds()) return; }   // tout le monde est la : pas de scan (il gene le Wi-Fi)
   doScan(4);
   std::vector<String> todo;
   { Lock l; for (auto& f : found) if (f.bonded) todo.push_back(f.s); }
