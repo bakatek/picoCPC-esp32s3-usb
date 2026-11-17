@@ -1,4 +1,4 @@
-PicoCPC USB Bridge v1.5 - flasher le firmware
+PicoCPC USB Bridge v1.6 - flasher le firmware
 ================================================
 
 1. Branchez l'ESP32-S3 a l'ordinateur par le port "UART" de la carte (pas le port "USB").
