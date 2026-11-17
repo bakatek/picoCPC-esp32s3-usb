@@ -17,3 +17,5 @@ TODO :
 - ajouter la possibilité de coller du code via clavier.
 - clean la partie saisie wifi (scan ssid fonctionne ?)
 - essayer d'optimiser la saisie clavier qui est peu réactive.
+- ajouter un update FW sur la page web
+- ajouter dans le projet un binaire (windows et linux) pour flasher le fw simplement (python ?).
