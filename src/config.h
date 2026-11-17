@@ -28,5 +28,10 @@
 #define REMOUNT_DELAY_MS  2500         // delai apres la derniere modification
 #define DETACH_MS         700          // duree du detachement USB
 
+// --- Diagnostic -----------------------------------------------------
+// 0 = l'ESP32 se presente comme une cle USB seule (sans clavier/souris).
+// Utile pour savoir si c'est le peripherique composite qui gene la PicoCPC.
+#define ENABLE_HID        1
+
 // --- Bluetooth ----------------------------------------------------
 #define BLE_PASSKEY       123456       // code a taper sur un clavier BT lors de l'appairage

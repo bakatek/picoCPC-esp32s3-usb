@@ -11,3 +11,7 @@ void usbKeyboardReport(const uint8_t r[8]);
 // souris : etat des boutons (b0 gauche, b1 droit, b2 milieu) + deplacements relatifs
 void usbMouse(uint8_t buttons, int dx, int dy, int wheel);
 void usbReleaseAll();
+
+// mode HID (une seule interface boot possible) : 1 = clavier, 2 = souris ; change apres redemarrage
+int usbHidMode();
+void usbSetHidMode(int m);

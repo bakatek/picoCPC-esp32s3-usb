@@ -58,6 +58,10 @@ th{color:var(--mut);font-weight:500;font-size:12px}td.n{text-align:right;white-s
 <button class="sec" id="kReset">Reset CPC (Ctrl+Maj+Échap)</button>
 <button class="sec" id="kRel">Tout relâcher</button>
 <span id="wsState" class="chip">WS …</span></div>
+<div class="row" style="margin-top:10px"><span>Mode USB vers la PicoCPC :</span>
+<button class="sec" id="hKbd">Clavier</button><button class="sec" id="hMouse">Souris</button>
+<span id="hidState" class="mut"></span></div>
+<div class="mut">Le matériel n'offre qu'une interface HID « boot » à la fois : changer de mode redémarre l'ESP32 (la PicoCPC met ~10 s à le reconnaître).</div>
 <div class="mut" style="margin-top:6px">Les touches sont envoyées par position physique : la PicoCPC applique sa propre disposition (KEYBOARDLANG).</div>
 </section>
 
@@ -80,6 +84,12 @@ th{color:var(--mut);font-weight:500;font-size:12px}td.n{text-align:right;white-s
 <button id="wSave">Enregistrer et redémarrer</button></div>
 <div class="mut" style="margin-top:6px">SSID vide = retour au point d'accès de l'ESP32. Après redémarrage, rouvrez <b>http://picocpc.local/</b> (ou l'IP affichée sur le moniteur série).</div>
 <div id="wMsg" class="msg"></div>
+</section>
+
+<section>
+<h2>Journal USB</h2>
+<div class="row"><button id="lClear" class="sec">Effacer</button><span class="mut">Ce que la PicoCPC demande à la clé (80 dernières lignes).</span></div>
+<pre id="log" style="max-height:260px;overflow:auto;font-size:12px;margin:8px 0 0"></pre>
 </section>
 </main>
 <script>
@@ -132,6 +142,9 @@ const drop=$('#drop');
 drop.onclick=()=>$('#pick').click();$('#pick').onchange=e=>{upAll(e.target.files);e.target.value=''};
 drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};drop.ondragleave=()=>drop.classList.remove('over');
 drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');upAll(e.dataTransfer.files)};
+$('#hKbd').onclick=()=>post('/api/hidmode',{m:1}).then(()=>msg('Redémarrage en mode clavier…'));
+$('#hMouse').onclick=()=>post('/api/hidmode',{m:2}).then(()=>msg('Redémarrage en mode souris…'));
+api('/api/status').then(s=>{$('#hidState').textContent='Mode actuel : '+(s.hid==2?'souris':'clavier')}).catch(()=>{});
 $('#bRemount').onclick=async()=>{try{await post('/api/remount');msg('Remontage en cours…');setTimeout(refresh,2500)}catch(e){msg(e.message)}};
 $('#bFormat').onclick=async()=>{if(!confirm('Effacer TOUS les fichiers de la clé ?'))return;try{await post('/api/format',{confirm:'1'});refresh()}catch(e){msg(e.message)}};
 
@@ -200,6 +213,11 @@ $('#wSave').onclick=async()=>{
  if(!confirm('Enregistrer et redémarrer l’ESP32 ?'))return;
  try{await post('/api/wifi/save',{ssid:$('#wSsid').value,pass:$('#wPass').value});
   $('#wMsg').textContent='Enregistré. Redémarrage en cours : cette page va se couper.'}catch(e){$('#wMsg').textContent=e.message}};
+
+/* ---------- journal ---------- */
+async function logLoad(){try{const r=await fetch('/api/log');const t=await r.text();const p=$('#log');const bottom=p.scrollTop+p.clientHeight>=p.scrollHeight-8;p.textContent=t;if(bottom)p.scrollTop=p.scrollHeight}catch(e){}}
+$('#lClear').onclick=async()=>{await post('/api/log/clear');logLoad()};
+setInterval(logLoad,2000);logLoad();
 
 wsc();refresh();bleRefresh();wifiLoad();
 setInterval(refresh,5000);setInterval(bleRefresh,2000);

@@ -13,6 +13,7 @@
 #include "fat16.h"
 #include "usb_dev.h"
 #include "ble_hid.h"
+#include "dbglog.h"
 #include "web_ui.h"
 
 #ifdef SET_LOOP_TASK_STACK_SIZE
@@ -51,7 +52,7 @@ static void sendOk() { sendJson(200, "{\"ok\":true}"); }
 static void hStatus() {
   uint32_t total = g_fat.totalBytes(), fr = g_fat.freeBytes();
   String j = "{\"total\":" + String(total) + ",\"free\":" + String(fr) + ",\"usb\":" + (usbMounted() ? "true" : "false") +
-             ",\"pending\":" + (g_pending ? "true" : "false") + ",\"ip\":\"" + g_ip + "\"}";
+             ",\"hid\":" + String(usbHidMode()) + ",\"pending\":" + (g_pending ? "true" : "false") + ",\"ip\":\"" + g_ip + "\"}";
   sendJson(200, j);
 }
 
@@ -85,10 +86,16 @@ static void hRename() {
 static void hFormat() {
   if (server.arg("confirm") != "1") { sendErr(400, "confirmation manquante"); return; }
   if (!g_fat.format(VOLUME_LABEL)) { sendErr(500, g_fat.lastError); return; }
-  markChanged(); sendOk();
+  dbg("Volume formate depuis la page web");
+  markChanged(); g_remountNow = true; sendOk();
 }
 
 static void hRemount() { g_remountNow = true; sendOk(); }
+static void hHidMode() {
+  usbSetHidMode(server.arg("m").toInt());
+  sendOk();
+  g_reboot = true; g_rebootAt = millis() + 800;
+}
 
 static bool upOk = true;
 static std::string upErr;
@@ -169,6 +176,9 @@ static void hWifiSave() {
   g_reboot = true; g_rebootAt = millis() + 800;
 }
 
+static void hLog()   { server.send(200, "text/plain; charset=utf-8", dbgDump()); }
+static void hLogClear() { dbgClear(); sendOk(); }
+
 static void hBle()        { sendJson(200, bleJson()); }
 static void hBleScan()    { bleScan(); sendOk(); }
 static void hBleConnect() { bleConnect(server.arg("addr")); sendOk(); }
@@ -217,6 +227,7 @@ static void wifiSetup() {
     WiFi.softAP(AP_SSID, AP_PASS);
     g_ip = WiFi.softAPIP().toString();
   }
+  // NB : ne pas appeler WiFi.setSleep(false) : incompatible avec le Bluetooth actif (abort() dans coex).
   if (MDNS.begin(HOSTNAME)) MDNS.addService("http", "tcp", 80);
   Serial.printf("Wi-Fi %s - http://%s/ (ou http://%s.local/)\n", sta ? "STA" : "AP", g_ip.c_str(), HOSTNAME);
 }
@@ -237,6 +248,7 @@ void setup() {
   }
   Serial.printf("Disque : %u Ko, libre %u Ko\n", g_fat.totalBytes() / 1024, g_fat.freeBytes() / 1024);
 
+  pinMode(0, INPUT_PULLUP);                  // bouton BOOT : appui de 3 s = reformatage du volume
   usbSetup();
   wifiSetup();
   bleBegin();
@@ -248,8 +260,11 @@ void setup() {
   server.on("/api/rename", HTTP_POST, hRename);
   server.on("/api/format", HTTP_POST, hFormat);
   server.on("/api/remount", HTTP_POST, hRemount);
+  server.on("/api/hidmode", HTTP_POST, hHidMode);
   server.on("/api/upload", HTTP_POST, hUploadDone, hUploadData);
   server.on("/download", HTTP_GET, hDownload);
+  server.on("/api/log", HTTP_GET, hLog);
+  server.on("/api/log/clear", HTTP_POST, hLogClear);
   server.on("/api/wifi", HTTP_GET, hWifi);
   server.on("/api/wifi/scan", HTTP_GET, hWifiScan);
   server.on("/api/wifi/save", HTTP_POST, hWifiSave);
@@ -275,6 +290,23 @@ void loop() {
   }
 
   g_disk.flushIfIdle(FLUSH_IDLE_MS);
+
+  // Secours : bouton BOOT maintenu 3 s -> reformatage du volume + remontage
+  static uint32_t lowSince = 0;
+  static bool fmtDone = false;
+  if (digitalRead(0) == LOW) {
+    if (!lowSince) lowSince = millis();
+    if (!fmtDone && millis() - lowSince > 3000) {
+      fmtDone = true;
+      dbg("Bouton BOOT : reformatage du volume");
+      if (g_fat.format(VOLUME_LABEL)) { markChanged(); g_remountNow = true; }
+      else dbg("Formatage impossible : %s", g_fat.lastError.c_str());
+    }
+  } else { lowSince = 0; fmtDone = false; }
+
+  static int lastMounted = -1;
+  int mm = usbMounted() ? 1 : 0;
+  if (mm != lastMounted) { lastMounted = mm; dbg(mm ? "USB : l'hote a enumere l'ESP32 (monte)" : "USB : non monte / debranche"); }
 
   if (g_reboot && millis() > g_rebootAt) { g_disk.flush(); ESP.restart(); }
 
