@@ -29,7 +29,7 @@
 #define DETACH_MS         700          // duree du detachement USB
 
 // --- Version -----------------------------------------------------
-#define FW_VERSION        "1.4"        // affichee sur la page web et dans le nom des fichiers de release
+#define FW_VERSION        "1.5"        // affichee sur la page web et dans le nom des fichiers de release
 
 // --- Diagnostic -----------------------------------------------------
 // 0 = l'ESP32 se presente comme une cle USB seule (sans clavier/souris).

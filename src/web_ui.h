@@ -54,7 +54,7 @@ th{color:var(--mut);font-weight:500;font-size:12px}td.n{text-align:right;white-s
 <button class="sec" id="dGpA">Groupe A: (|DGP)</button><button class="sec" id="dGpB">Groupe B: (|DGP,"B")</button>
 <button class="sec" id="dReset">Reset groupes (|DRESET)</button></div>
 <div class="row" style="margin-top:8px">
-<label>n° du 1er disque dans |DCAT <input type="number" id="dBase" value="1" min="0" max="9" style="width:4em"></label></div>
+<label>n° du 1er disque dans |DCAT <input type="number" id="dBase" value="0" min="0" max="9" style="width:4em"></label></div>
 <div class="mut" style="margin-top:6px">Les boutons « Monter A / B » à côté de chaque .dsk tapent <code>|DLOAD,n</code> au clavier du CPC (il doit être à l'invite BASIC, ESP en mode <b>clavier</b>). Pour un groupe : « Groupe » puis « Monter » sur chaque disque (8 max). Le n° affiché vient de l'ordre du répertoire : vérifiez-le une fois avec |DCAT et corrigez « n° du 1er disque » si besoin.</div>
 
 </section>
@@ -253,7 +253,7 @@ function cmds(lines,pauseAfterFirst){
  lines.forEach((l,i)=>{steps=steps.concat(textToSteps(l,lang).st,[[0,0x28]]);if(i<lines.length-1)steps=steps.concat(PAUSE(pauseAfterFirst||40))});
  if(!ws||ws.readyState!==1){$('#tProg').textContent='WebSocket non connecté';return}
  tCfg=$('#tSpeed').value;tq=tq.concat(steps);tTotal+=steps.length;tPump()}
-const base=()=>parseInt($('#dBase').value||'1',10);
+const base=()=>parseInt($("#dBase").value||"0",10);
 let dskList=[];
 const dskIdx=name=>dskList.indexOf(name)+base();
 function mount(id,b){

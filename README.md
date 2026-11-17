@@ -11,6 +11,10 @@ pilotes par une page web et par Bluetooth.
 
 Tests hote (PC) du disque + FAT16 : `tools/hosttest` (g++ + python3), voir `test.cpp` et `verify_fat16.py`.
 
+![img3](imgs/1.png "")
+![img2](imgs/2.png "")
+![img3](imgs/3.png "")
+
 
 ## Mise à jour du firmware
 
